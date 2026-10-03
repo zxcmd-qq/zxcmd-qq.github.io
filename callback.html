@@ -1,0 +1,23 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Autopost — authorization</title><link rel="stylesheet" href="style.css"></head><body>
+<h1>Autopost</h1>
+<div id="box"></div>
+<script>
+const p = new URLSearchParams(location.search);
+const code = p.get("code"), err = p.get("error") || p.get("error_description");
+const box = document.getElementById("box");
+if (code) {
+  box.innerHTML = '<p>✅ Готово. Скопируй код и вставь его в Терминал:</p>' +
+    '<textarea id="c" rows="4" style="width:100%;font-size:14px" readonly></textarea>' +
+    '<p><button id="b" style="font-size:16px;padding:8px 16px">Скопировать</button> <span id="ok"></span></p>';
+  document.getElementById("c").value = code;
+  document.getElementById("b").onclick = async () => {
+    await navigator.clipboard.writeText(code); document.getElementById("ok").textContent = "Скопировано ✔︎";
+  };
+} else if (err) {
+  box.textContent = "Ошибка: " + err;
+} else {
+  box.textContent = "This page receives the authorization code after login. Nothing to see here.";
+}
+</script>
+</body></html>
