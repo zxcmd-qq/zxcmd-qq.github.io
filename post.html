@@ -92,7 +92,7 @@ function status(msg, cls = "") { $("status").className = cls; $("status").textCo
 
 $("btnLogin").onclick = () => {
   const q = new URLSearchParams({ client_key: C.CLIENT_KEY, response_type: "code",
-    scope: "user.info.basic,video.publish,video.upload", redirect_uri: REDIRECT,
+    scope: "user.info.basic,video.publish", redirect_uri: REDIRECT,
     state: "post" + Math.random().toString(36).slice(2) });
   location.href = "https://www.tiktok.com/v2/auth/authorize/?" + q;
 };
