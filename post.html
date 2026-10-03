@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Autopost — Post to TikTok</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .card{background:#fff;border:1px solid #e5e5e5;border-radius:14px;padding:18px;margin:16px 0}
+  .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .btn{background:#fe2c55;color:#fff;border:0;border-radius:10px;padding:11px 20px;font-size:16px;font-weight:600;cursor:pointer}
+  .btn:disabled{background:#f3a3b3;cursor:not-allowed}
+  .btn.sec{background:#222}
+  .avatar{width:48px;height:48px;border-radius:50%;object-fit:cover;background:#eee}
+  label.blk{display:block;font-weight:600;margin:14px 0 6px}
+  select,textarea,input[type=file]{width:100%;font:inherit;padding:9px;border:1px solid #ccc;border-radius:8px;box-sizing:border-box}
+  video{max-width:100%;max-height:420px;border-radius:10px;background:#000;display:block;margin-top:10px}
+  .tog{display:flex;align-items:center;gap:8px;margin:6px 0}
+  .hint{font-size:13px;color:#777}
+  .err{color:#c00}.ok{color:#0a7d2c}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<h1>Autopost</h1>
+<p>Publish your own videos to your TikTok account. <a href="index.html">About</a> · <a href="terms.html">Terms</a> · <a href="privacy.html">Privacy</a></p>
+
+<div class="card" id="login">
+  <p>Connect your TikTok account to start.</p>
+  <button class="btn sec" id="btnLogin">Continue with TikTok</button>
+  <p class="hint">You will be asked to authorize Autopost to read your basic profile and publish videos you choose.</p>
+</div>
+
+<div id="app" class="hidden">
+  <div class="card row" id="account">
+    <img class="avatar" id="avatar" alt="">
+    <div><b id="nick"></b><br><span class="hint">Posting to this TikTok account</span></div>
+    <span style="flex:1"></span>
+    <button class="btn sec" id="btnLogout">Disconnect</button>
+  </div>
+
+  <div class="card">
+    <label class="blk">1. Choose a video</label>
+    <input type="file" id="file" accept="video/mp4,video/quicktime,video/webm">
+    <div class="hint" id="fileInfo"></div>
+    <video id="preview" controls class="hidden"></video>
+
+    <label class="blk" for="caption">2. Caption</label>
+    <textarea id="caption" rows="4" maxlength="2200" placeholder="Write a caption with #hashtags"></textarea>
+    <div class="hint"><span id="capLen">0</span>/2200</div>
+
+    <label class="blk" for="privacy">3. Who can view this video</label>
+    <select id="privacy"><option value="" selected disabled>Select privacy…</option></select>
+
+    <label class="blk">4. Allow users to</label>
+    <div class="tog"><input type="checkbox" id="allowComment"><label for="allowComment">Comment</label></div>
+    <div class="tog"><input type="checkbox" id="allowDuet"><label for="allowDuet">Duet</label></div>
+    <div class="tog"><input type="checkbox" id="allowStitch"><label for="allowStitch">Stitch</label></div>
+
+    <label class="blk">5. Disclose video content</label>
+    <div class="tog"><input type="checkbox" id="disclose"><label for="disclose">This video promotes a brand, product or service</label></div>
+    <div id="discloseBox" class="hidden" style="margin-left:24px">
+      <div class="tog"><input type="checkbox" id="yourBrand"><label for="yourBrand">Your brand — you are promoting yourself or your own business</label></div>
+      <div class="tog"><input type="checkbox" id="branded"><label for="branded">Branded content — you are promoting another brand or a third party</label></div>
+      <div class="hint" id="discloseHint"></div>
+    </div>
+
+    <p class="hint" id="consent">By posting, you agree to TikTok's <a href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en" target="_blank">Music Usage Confirmation</a>.</p>
+    <button class="btn" id="btnPost" disabled>Post to TikTok</button>
+    <p id="status"></p>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script>
+const C = window.AUTOPOST, $ = id => document.getElementById(id);
+const REDIRECT = location.origin + "/callback.html";
+let token = sessionStorage.getItem("tt_token"), creator = null, file = null, maxDur = 600;
+
+async function api(path, body, method = "POST", extraHeaders = {}) {
+  const r = await fetch(C.WORKER + path, {
+    method, body: body instanceof Blob ? body : JSON.stringify(body || {}),
+    headers: { ...(token ? { Authorization: "Bearer " + token } : {}),
+               ...(body instanceof Blob ? {} : { "Content-Type": "application/json" }), ...extraHeaders },
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error((d.error && (d.error.message || d.error.code || d.error)) || ("HTTP " + r.status));
+  return d;
+}
+function status(msg, cls = "") { $("status").className = cls; $("status").textContent = msg; }
+
+$("btnLogin").onclick = () => {
+  const q = new URLSearchParams({ client_key: C.CLIENT_KEY, response_type: "code",
+    scope: "user.info.basic,video.publish,video.upload", redirect_uri: REDIRECT,
+    state: "post" + Math.random().toString(36).slice(2) });
+  location.href = "https://www.tiktok.com/v2/auth/authorize/?" + q;
+};
+$("btnLogout").onclick = () => { sessionStorage.removeItem("tt_token"); location.reload(); };
+
+async function init() {
+  const code = sessionStorage.getItem("tt_code");
+  if (code && !token) {
+    sessionStorage.removeItem("tt_code");
+    try {
+      const d = await api("/token", { code, redirect_uri: REDIRECT });
+      token = d.access_token; sessionStorage.setItem("tt_token", token);
+    } catch (e) { alert("Login failed: " + e.message); }
+  }
+  if (!token) return;
+  try {
+    const d = await api("/creator_info");
+    creator = d.data;
+  } catch (e) { sessionStorage.removeItem("tt_token"); token = null; alert("Session expired, please log in again."); return; }
+  $("login").classList.add("hidden"); $("app").classList.remove("hidden");
+  $("avatar").src = creator.creator_avatar_url || "";
+  $("nick").textContent = (creator.creator_nickname || "") + (creator.creator_username ? " (@" + creator.creator_username + ")" : "");
+  maxDur = creator.max_video_post_duration_sec || 600;
+  const names = { PUBLIC_TO_EVERYONE: "Everyone", MUTUAL_FOLLOW_FRIENDS: "Friends", FOLLOWER_OF_CREATOR: "Followers", SELF_ONLY: "Only me" };
+  for (const o of creator.privacy_level_options || []) {
+    const opt = document.createElement("option"); opt.value = o; opt.textContent = names[o] || o; $("privacy").appendChild(opt);
+  }
+  for (const [k, id] of [["comment_disabled", "allowComment"], ["duet_disabled", "allowDuet"], ["stitch_disabled", "allowStitch"]]) {
+    if (creator[k]) { $(id).disabled = true; $(id).parentElement.title = "Disabled in your TikTok settings"; $(id).parentElement.style.opacity = .5; }
+  }
+  validate();
+}
+
+$("file").onchange = () => {
+  file = $("file").files[0] || null; $("fileInfo").textContent = "";
+  if (!file) return validate();
+  const v = $("preview"); v.src = URL.createObjectURL(file); v.classList.remove("hidden");
+  v.onloadedmetadata = () => {
+    const mb = (file.size / 1048576).toFixed(1);
+    $("fileInfo").textContent = `${file.name} · ${mb} MB · ${v.duration.toFixed(1)} s`;
+    if (v.duration > maxDur) { $("fileInfo").innerHTML += ` <span class="err">— too long, max ${maxDur} s for your account</span>`; file = null; }
+    if (file && file.size > 64 * 1048576) { $("fileInfo").innerHTML += ' <span class="err">— max 64 MB</span>'; file = null; }
+    validate();
+  };
+};
+$("caption").oninput = () => { $("capLen").textContent = $("caption").value.length; };
+$("disclose").onchange = () => { $("discloseBox").classList.toggle("hidden", !$("disclose").checked); updateDisclosure(); };
+$("yourBrand").onchange = updateDisclosure; $("branded").onchange = updateDisclosure;
+$("privacy").onchange = updateDisclosure;
+
+function updateDisclosure() {
+  const on = $("disclose").checked, yb = $("yourBrand").checked, bc = $("branded").checked;
+  const selfOnly = [...$("privacy").options].find(o => o.value === "SELF_ONLY");
+  if (selfOnly) selfOnly.disabled = on && bc;
+  if (on && bc && $("privacy").value === "SELF_ONLY") $("privacy").value = "";
+  $("discloseHint").textContent = !on ? "" : (bc ? 'Your video will be labeled as "Paid partnership". Branded content can\'t be private.'
+    : yb ? 'Your video will be labeled as "Promotional content".' : "Choose at least one option.");
+  $("consent").innerHTML = (on && bc)
+    ? 'By posting, you agree to TikTok\'s <a href="https://www.tiktok.com/legal/page/global/bc-policy/en" target="_blank">Branded Content Policy</a> and <a href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en" target="_blank">Music Usage Confirmation</a>.'
+    : 'By posting, you agree to TikTok\'s <a href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en" target="_blank">Music Usage Confirmation</a>.';
+  validate();
+}
+function validate() {
+  const disclosureOk = !$("disclose").checked || $("yourBrand").checked || $("branded").checked;
+  $("btnPost").disabled = !(token && file && $("privacy").value && disclosureOk);
+}
+
+$("btnPost").onclick = async () => {
+  $("btnPost").disabled = true;
+  try {
+    status("Preparing upload…");
+    const post_info = {
+      title: $("caption").value, privacy_level: $("privacy").value,
+      disable_comment: !$("allowComment").checked, disable_duet: !$("allowDuet").checked,
+      disable_stitch: !$("allowStitch").checked, video_cover_timestamp_ms: 1000,
+      brand_content_toggle: $("disclose").checked && $("branded").checked,
+      brand_organic_toggle: $("disclose").checked && $("yourBrand").checked,
+    };
+    const init = await api("/init", { post_info, video_size: file.size });
+    const { publish_id, upload_url } = init.data;
+    status("Uploading video…");
+    await api("/upload", file, "PUT", { "X-Upload-Url": upload_url });
+    status("Processing on TikTok…");
+    for (let i = 0; i < 40; i++) {
+      await new Promise(r => setTimeout(r, 3000));
+      const s = (await api("/status", { publish_id })).data || {};
+      if (s.status === "PUBLISH_COMPLETE") { status("✅ Posted! It may take a few minutes to appear on your profile.", "ok"); return; }
+      if (s.status === "FAILED") throw new Error(s.fail_reason || "TikTok rejected the video");
+      status("Processing on TikTok… (" + (s.status || "waiting") + ")");
+    }
+    status("Uploaded. TikTok is still processing — check your profile in a few minutes.", "ok");
+  } catch (e) {
+    status("❌ " + e.message, "err"); $("btnPost").disabled = false;
+  }
+};
+init();
+</script>
+</body>
+</html>
