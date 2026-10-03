@@ -74,6 +74,7 @@
 <script src="config.js"></script>
 <script>
 const C = window.AUTOPOST, $ = id => document.getElementById(id);
+C.WORKER = (/^https?:\/\//.test(C.WORKER) ? C.WORKER : "https://" + C.WORKER).replace(/\/+$/, "");
 const REDIRECT = location.origin + "/callback.html";
 let token = sessionStorage.getItem("tt_token"), creator = null, file = null, maxDur = 600;
 
