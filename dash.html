@@ -78,6 +78,7 @@ const URL_ = (W.startsWith("http") ? W : "https://" + W) + "/stats";
 const PL = {
   youtube:   { name: "YouTube",   c: "var(--yt)", i: "▶", k: ["Подписчики", "Просмотры", "Видео"], f: ["followers", "views", "posts"] },
   telegram:  { name: "Telegram",  c: "var(--tg)", i: "✈", k: ["Подписчики"], f: ["followers"] },
+  tiktok:    { name: "TikTok",    c: "var(--tt)", i: "♪", k: ["Подписчики", "Просмотры", "Лайки"], f: ["followers", "views", "likes"] },
   instagram: { name: "Instagram", c: "var(--ig)", i: "◎", k: ["Подписчики", "Просмотры", "Публикации"], f: ["followers", "views", "posts"] },
 };
 const fmt = n => n == null || isNaN(n) ? "—" : n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1).replace(".0", "") + "M"
