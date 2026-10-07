@@ -31,6 +31,8 @@
   .hero .big{font-size:46px;font-weight:800;letter-spacing:-1.5px;margin:4px 0 2px}
   .delta{font-size:14px;font-weight:600}
   .delta.up{color:var(--up)} .delta.down{color:var(--down)} .delta.zero{color:var(--mut)}
+  .vrow{display:flex;align-items:flex-end;justify-content:space-between;margin-top:14px;padding-top:12px;border-top:1px solid #ffffff1f}
+  .hero .mid{font-size:28px;font-weight:800;letter-spacing:-.8px;margin-top:2px}
   .bars{display:flex;height:8px;border-radius:6px;overflow:hidden;margin-top:14px;background:#ffffff14}
   .bars i{display:block;height:100%}
   .legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:#c9c6e8}
@@ -76,7 +78,7 @@ const URL_ = (W.startsWith("http") ? W : "https://" + W) + "/stats";
 const PL = {
   youtube:   { name: "YouTube",   c: "var(--yt)", i: "▶", k: ["Подписчики", "Просмотры", "Видео"], f: ["followers", "views", "posts"] },
   telegram:  { name: "Telegram",  c: "var(--tg)", i: "✈", k: ["Подписчики"], f: ["followers"] },
-  instagram: { name: "Instagram", c: "var(--ig)", i: "◎", k: ["Подписчики", "Публикации"], f: ["followers", "posts"] },
+  instagram: { name: "Instagram", c: "var(--ig)", i: "◎", k: ["Подписчики", "Просмотры", "Публикации"], f: ["followers", "views", "posts"] },
 };
 const fmt = n => n == null || isNaN(n) ? "—" : n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1).replace(".0", "") + "M"
   : n >= 1e4 ? (n / 1e3).toFixed(n >= 1e5 ? 0 : 1).replace(".0", "") + "K" : n.toLocaleString("ru-RU");
@@ -97,6 +99,14 @@ function render(data) {
   const prev = load("stats_prev") || {};
   const app = document.getElementById("app");
   let html = "", total = 0, prevTotal = 0, hasPrev = false, parts = [];
+  let views = 0, prevViews = 0, hasPrevV = false;
+  for (const id of Object.keys(PL)) {
+    const d = data[id];
+    if (d && !d.error && d.views != null) {
+      views += d.views;
+      if (prev[id] && prev[id].views != null) { prevViews += prev[id].views; hasPrevV = true; } else prevViews += d.views;
+    }
+  }
   for (const [id, p] of Object.entries(PL)) {
     const d = data[id];
     if (d && !d.error && d.followers != null) {
@@ -107,6 +117,8 @@ function render(data) {
   const td = total - prevTotal;
   html += `<div class="hero"><div class="lbl">Всего подписчиков</div><div class="big">${fmt(total)}</div>
     ${hasPrev ? `<div class="delta ${td > 0 ? "up" : td < 0 ? "down" : "zero"}">${td > 0 ? "▲ +" + fmt(td) : td < 0 ? "▼ −" + fmt(-td) : "без изменений"} с прошлого раза</div>` : `<div class="delta zero">первый заход — дальше покажу прирост</div>`}
+    <div class="vrow"><div><div class="lbl">Всего просмотров</div><div class="mid">${fmt(views)}</div></div>
+      ${hasPrevV ? `<div class="delta ${views - prevViews > 0 ? "up" : "zero"}">${views - prevViews > 0 ? "▲ +" + fmt(views - prevViews) : "без изменений"}</div>` : ""}</div>
     <div class="bars">${parts.map(([c, v]) => `<i style="width:${total ? v / total * 100 : 0}%;background:${c}"></i>`).join("")}</div>
     <div class="legend">${parts.map(([c, v, n]) => `<span><b style="background:${c}"></b>${n} ${fmt(v)}</span>`).join("")}</div></div>`;
 
@@ -119,8 +131,9 @@ function render(data) {
       <div class="grow"><div class="name">${esc(d.title || p.name)}</div><div class="plat" style="color:${p.c}">${p.name}</div></div>
       ${d.url ? `<a class="open" href="${esc(d.url)}" target="_blank" rel="noopener">›</a>` : ""}</div>`;
     if (d.error) { html += `<div class="err">⚠️ ${esc(d.error)}</div></div>`; continue; }
-    html += `<div class="nums" style="grid-template-columns:repeat(${p.f.length},1fr)">` +
-      p.f.map((f, i) => `<div class="num"><div class="v">${fmt(d[f])}</div><div class="k">${p.k[i]}</div>${delta(d[f], pv[f])}</div>`).join("") + `</div>`;
+    const fl = p.f.map((f, i) => [f, p.k[i]]).filter(([f]) => !(f === "views" && d.views == null));
+    html += `<div class="nums" style="grid-template-columns:repeat(${fl.length},1fr)">` +
+      fl.map(([f, k]) => `<div class="num"><div class="v">${fmt(d[f])}</div><div class="k">${k}</div>${delta(d[f], pv[f])}</div>`).join("") + `</div>`;
     if (d.recent && d.recent.length) {
       html += `<div class="recent">` + d.recent.map(r => `<a class="post" href="${esc(r.url)}" target="_blank" rel="noopener">
         <div class="th" style="background-image:url('${esc(r.thumb || "")}')"><span>${r.views != null ? "👁 " + fmt(r.views) : "♥ " + fmt(r.likes)}</span></div>
