@@ -1,0 +1,1 @@
+{"name": "Статы", "short_name": "Статы", "start_url": "dash.html", "display": "standalone", "background_color": "#0b0b10", "theme_color": "#0b0b10", "icons": [{"src": "dash-icon-192.png", "sizes": "192x192", "type": "image/png"}, {"src": "dash-icon.png", "sizes": "512x512", "type": "image/png"}]}
