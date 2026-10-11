@@ -104,14 +104,14 @@ function render(data) {
   for (const id of Object.keys(PL)) {
     const d = data[id];
     if (d && !d.error && d.views != null) {
-      views += d.views;
+      views += d.views; parts.push([PL[id].c, d.views, PL[id].name]);
       if (prev[id] && prev[id].views != null) { prevViews += prev[id].views; hasPrevV = true; } else prevViews += d.views;
     }
   }
   for (const [id, p] of Object.entries(PL)) {
     const d = data[id];
     if (d && !d.error && d.followers != null) {
-      total += d.followers; parts.push([p.c, d.followers, p.name]);
+      total += d.followers;
       if (prev[id] && prev[id].followers != null) { prevTotal += prev[id].followers; hasPrev = true; } else prevTotal += d.followers;
     }
   }
@@ -120,8 +120,8 @@ function render(data) {
     ${hasPrev ? `<div class="delta ${td > 0 ? "up" : td < 0 ? "down" : "zero"}">${td > 0 ? "▲ +" + fmt(td) : td < 0 ? "▼ −" + fmt(-td) : "без изменений"} с прошлого раза</div>` : `<div class="delta zero">первый заход — дальше покажу прирост</div>`}
     <div class="vrow"><div><div class="lbl">Всего просмотров</div><div class="mid">${fmt(views)}</div></div>
       ${hasPrevV ? `<div class="delta ${views - prevViews > 0 ? "up" : "zero"}">${views - prevViews > 0 ? "▲ +" + fmt(views - prevViews) : "без изменений"}</div>` : ""}</div>
-    <div class="bars">${parts.map(([c, v]) => `<i style="width:${total ? v / total * 100 : 0}%;background:${c}"></i>`).join("")}</div>
-    <div class="legend">${parts.map(([c, v, n]) => `<span><b style="background:${c}"></b>${n} ${fmt(v)}</span>`).join("")}</div></div>`;
+    <div class="bars">${parts.map(([c, v]) => `<i style="width:${views ? v / views * 100 : 0}%;background:${c}"></i>`).join("")}</div>
+    <div class="legend">${parts.map(([c, v, n]) => `<span><b style="background:${c}"></b>${n} 👁 ${fmt(v)}</span>`).join("")}</div></div>`;
 
   for (const [id, p] of Object.entries(PL)) {
     const d = data[id];
