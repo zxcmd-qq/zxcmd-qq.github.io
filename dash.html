@@ -59,6 +59,10 @@
   .err{color:#ff9f0a;font-size:13px;margin-top:10px}
   .off{opacity:.55}
   .foot{color:var(--mut);font-size:12px;text-align:center;margin-top:18px}
+  .seg{display:flex;background:var(--card2);border-radius:14px;padding:4px;margin-bottom:14px;gap:4px}
+  .seg button{flex:1;border:0;background:none;color:var(--mut);font:600 14px/1 inherit;font-family:inherit;padding:10px 4px;border-radius:10px}
+  .seg button.on{background:var(--card);color:var(--txt);box-shadow:0 1px 4px #0006}
+  .empty{color:var(--mut);font-size:13px;margin-top:12px}
   .skel{background:linear-gradient(90deg,var(--card) 0%,var(--card2) 50%,var(--card) 100%);background-size:200% 100%;animation:sk 1.2s infinite;border-radius:20px;height:150px;margin-bottom:12px}
   @keyframes sk{to{background-position:-200% 0}}
 </style>
@@ -68,6 +72,9 @@
   <div><h1>Статы</h1><div class="upd" id="upd">загрузка…</div></div>
   <button class="btn" id="ref" aria-label="Обновить"><span>↻</span></button>
 </header>
+<div class="seg" id="seg">
+  <button data-p="3">3 дня</button><button data-p="7">Неделя</button><button data-p="0">Всё время</button>
+</div>
 <div id="app"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
 <div class="foot">Цифры кэшируются на 10 минут · Δ — с прошлого захода</div>
 
@@ -96,7 +103,61 @@ function delta(cur, prev) {
   return `<div class="d delta ${d > 0 ? "up" : d < 0 ? "down" : "zero"}">${d > 0 ? "▲ +" + fmt(d) : d < 0 ? "▼ −" + fmt(-d) : "· 0"}</div>`;
 }
 
+let PERIOD = +(load("period") ?? 0);
+const PNAME = { 3: "за 3 дня", 7: "за неделю" };
+function inPeriod(d) {                       // видео платформы за выбранный период
+  const list = d.all || d.recent || [];
+  if (!PERIOD) return list;
+  const from = Date.now() - PERIOD * 864e5;
+  return list.filter(r => r.date && new Date(r.date) >= from);
+}
+const sum = (l, f) => l.some(r => r[f] != null) ? l.reduce((a, r) => a + (r[f] || 0), 0) : null;
+function renderPeriod(data) {
+  const app = document.getElementById("app");
+  const pn = PNAME[PERIOD];
+  let html = "", total = 0, views = 0, cnt = 0, parts = [];
+  for (const [id, p] of Object.entries(PL)) {
+    const d = data[id];
+    if (!d || d.error) continue;
+    if (d.followers != null) total += d.followers;
+    const l = inPeriod(d), v = sum(l, "views");
+    cnt += l.length;
+    if (v != null) { views += v; parts.push([p.c, v, p.name]); }
+  }
+  html += `<div class="hero"><div class="lbl">Просмотры ${pn}</div><div class="big">${fmt(views)}</div>
+    <div class="delta zero">новых видео ${pn}: ${cnt} · подписчиков всего ${fmt(total)}</div>
+    <div class="bars">${parts.map(([c, v]) => `<i style="width:${views ? v / views * 100 : 0}%;background:${c}"></i>`).join("")}</div>
+    <div class="legend">${parts.map(([c, v, n]) => `<span><b style="background:${c}"></b>${n} 👁 ${fmt(v)}</span>`).join("")}</div></div>`;
+  for (const [id, p] of Object.entries(PL)) {
+    const d = data[id];
+    if (!d) continue;
+    html += `<div class="card"><div class="top">
+      ${d.avatar ? `<img class="ava" src="${esc(d.avatar)}" alt="">` : `<div class="ico" style="background:${p.c}">${p.i}</div>`}
+      <div class="grow"><div class="name">${esc(d.title || p.name)}</div><div class="plat" style="color:${p.c}">${p.name}</div></div>
+      ${d.url ? `<a class="open" href="${esc(d.url)}" target="_blank" rel="noopener">›</a>` : ""}</div>`;
+    if (d.error) { html += `<div class="err">⚠️ ${esc(d.error)}</div></div>`; continue; }
+    if (id === "telegram") {
+      html += `<div class="nums" style="grid-template-columns:1fr"><div class="num"><div class="v">${fmt(d.followers)}</div><div class="k">Подписчики (всего)</div></div></div></div>`;
+      continue;
+    }
+    const l = inPeriod(d), v = sum(l, "views");
+    const nums = [[fmt(l.length), "Видео " + pn], [fmt(v), "Просмотры"], [fmt(sum(l, "likes")), "Лайки"]];
+    html += `<div class="nums">` + nums.map(([x, k]) => `<div class="num"><div class="v">${x}</div><div class="k">${k}</div></div>`).join("") + `</div>`;
+    html += l.length ? posts([...l].sort((a, b) => (b.views ?? b.likes ?? 0) - (a.views ?? a.likes ?? 0)))
+                     : `<div class="empty">Нет видео ${pn}</div>`;
+    html += `</div>`;
+  }
+  app.innerHTML = html;
+  document.getElementById("upd").textContent = "обновлено " + ago(data.updated);
+}
+function posts(l) {
+  return `<div class="recent">` + l.slice(0, 40).map(r => `<a class="post" href="${esc(r.url)}" target="_blank" rel="noopener">
+        <div class="th" style="background-image:url('${esc(r.thumb || "")}')"><span>${r.views != null ? "👁 " + fmt(r.views) : "♥ " + fmt(r.likes)}</span></div>
+        <div class="t">${esc(r.title || "без подписи")}</div></a>`).join("") + `</div>`;
+}
 function render(data) {
+  document.querySelectorAll("#seg button").forEach(b => b.classList.toggle("on", +b.dataset.p === PERIOD));
+  if (PERIOD) return renderPeriod(data);
   const prev = load("stats_prev") || {};
   const app = document.getElementById("app");
   let html = "", total = 0, prevTotal = 0, hasPrev = false, parts = [];
@@ -135,11 +196,8 @@ function render(data) {
     const fl = p.f.map((f, i) => [f, p.k[i]]).filter(([f]) => !(f === "views" && d.views == null));
     html += `<div class="nums" style="grid-template-columns:repeat(${fl.length},1fr)">` +
       fl.map(([f, k]) => `<div class="num"><div class="v">${fmt(d[f])}</div><div class="k">${k}</div>${delta(d[f], pv[f])}</div>`).join("") + `</div>`;
-    if (d.recent && d.recent.length) {
-      html += `<div class="recent">` + d.recent.map(r => `<a class="post" href="${esc(r.url)}" target="_blank" rel="noopener">
-        <div class="th" style="background-image:url('${esc(r.thumb || "")}')"><span>${r.views != null ? "👁 " + fmt(r.views) : "♥ " + fmt(r.likes)}</span></div>
-        <div class="t">${esc(r.title || "без подписи")}</div></a>`).join("") + `</div>`;
-    }
+    const al = d.all || d.recent || [];
+    if (al.length) html += posts(al);
     html += `</div>`;
   }
   app.innerHTML = html;
@@ -164,6 +222,10 @@ async function refresh(force) {
     else document.getElementById("app").innerHTML = `<div class="card"><div class="err">Не удалось загрузить: ${esc(e.message)}</div></div>`;
   } finally { b.classList.remove("spin"); }
 }
+document.querySelectorAll("#seg button").forEach(b => b.onclick = () => {
+  PERIOD = +b.dataset.p; save("period", PERIOD);
+  const c = load("stats_last"); if (c) render(c);
+});
 document.getElementById("ref").onclick = () => refresh(true);
 const c0 = load("stats_last"); if (c0) render(c0);
 refresh(false);
